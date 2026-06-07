@@ -46,11 +46,36 @@ test("does not false-positive Korean compounds", () => {
   }
 });
 
+test("still detects a direct vocative when a false-positive compound appears elsewhere", () => {
+  const decision = routeMessage(msg("이번 결과는 어때 결아?"), state);
+  assert.equal(decision.target, "keyol");
+  assert.equal(decision.callType, "direct_call");
+  assert.equal(decision.gemini, "call");
+});
+
 test("classifies about-Keyol status question as short template response", () => {
   const decision = routeMessage(msg("결이 지금 온라인이야?"), state);
   assert.equal(decision.target, "keyol");
   assert.equal(decision.action, "reply_short");
   assert.equal(decision.gemini, "fallback_template");
+  assert.equal(decision.fallbackTemplate, "응. 지금 듣고 있어.");
+});
+
+test("classifies alias-based status question as about Keyol", () => {
+  const decision = routeMessage(msg("귤이 지금 온라인이야?"), state, {
+    aliasPolicy: { weakReference: ["귤이", "키올이는"] }
+  });
+  assert.equal(decision.target, "keyol");
+  assert.equal(decision.action, "reply_short");
+  assert.equal(decision.gemini, "fallback_template");
+});
+
+test("classifies alias-based capability question as about Keyol", () => {
+  const decision = routeMessage(msg("키올이는 뭐 할 수 있어?"), state, {
+    aliasPolicy: { weakReference: ["키올이는"] }
+  });
+  assert.equal(decision.target, "keyol");
+  assert.equal(decision.action, "reply_if_question");
 });
 
 test("keeps third-person mention as consider-entry when ambient intervention is enabled", () => {
@@ -87,6 +112,28 @@ test("uses open conversation followup", () => {
   assert.equal(decision.callType, "followup");
 });
 
+test("short followup question calls Gemini instead of using a fallback template", () => {
+  const followState = {
+    botUserId: "bot-keyol",
+    openConversations: [
+      {
+        channelId: "chan",
+        userId: "user-a",
+        openedAt: now - 20_000,
+        lastBotMessageAt: now - 10_000,
+        lastUserMessageAt: now - 20_000,
+        lastBotAskedQuestion: true,
+        interruptedByUserIds: [],
+        mode: "normal"
+      }
+    ]
+  };
+  const decision = routeMessage(msg("그건?"), followState);
+  assert.equal(decision.target, "keyol");
+  assert.equal(decision.callType, "followup");
+  assert.equal(decision.gemini, "call");
+});
+
 test("maker direct call becomes long-term candidate", () => {
   const policy = { makerPolicy: { makerUserIds: ["maker"] } };
   const decision = routeMessage(msg("결, 이 구조 좀 잡아줘.", { authorId: "maker" }), state, policy);
@@ -118,4 +165,18 @@ test("rate limit switches Gemini calls to fallback template", () => {
   const decision = routeMessage(msg("결아 이 시스템 설계를 길게 분석해줘"), limitedState);
   assert.equal(decision.gemini, "fallback_template");
   assert.equal(decision.fallbackTemplate, "지금은 가볍게만 볼게. 깊은 답은 조금 아껴두자.");
+});
+
+test("every fallback template decision includes fallbackTemplate", () => {
+  const decisions = [
+    routeMessage(msg("결이 지금 온라인이야?"), state),
+    routeMessage(msg("결아 ok"), { botUserId: "bot-keyol", geminiDailyLimit: 100, geminiCallsToday: 95 })
+  ];
+
+  for (const decision of decisions) {
+    if (decision.gemini === "fallback_template") {
+      assert.equal(typeof decision.fallbackTemplate, "string");
+      assert.ok(decision.fallbackTemplate.length > 0);
+    }
+  }
 });
