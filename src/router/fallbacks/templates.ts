@@ -8,6 +8,14 @@ export function getFallbackTemplate(reason: string): string {
       return "지금은 가볍게만 볼게. 깊은 답은 조금 아껴두자.";
     case "rate_limited":
       return "잠깐만. 흐름이 너무 빨라서 조금 늦출게.";
+    case "status_question":
+      return "응. 지금 듣고 있어.";
+    case "troubleshooting":
+      return "문제 상황이면 로그를 같이 보면 돼.";
+    case "short_followup":
+      return "조금만 더 구체적으로 말해줘.";
+    case "short_reply":
+      return "응. 말해.";
     case "quiet_channel":
       return "";
     default:
