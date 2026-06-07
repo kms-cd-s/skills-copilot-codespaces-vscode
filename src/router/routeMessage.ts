@@ -1,4 +1,4 @@
-import type { ConversationState, IncomingMessageContext, RouterDecision, RouterPolicy } from "./types.js";
+import type { AliasPolicy, ConversationState, IncomingMessageContext, RouterDecision, RouterPolicy } from "./types.js";
 import { normalizeMessage } from "./normalize.js";
 import { resolvePolicy } from "./policies/defaults.js";
 import { classifyMessageShape } from "./rules/classifyMessageShape.js";
@@ -26,6 +26,15 @@ function noResponse(reason: string): RouterDecision {
   };
 }
 
+function mergeChannelAliases(aliasPolicy: AliasPolicy, channelAliases: string[] = []): AliasPolicy {
+  return {
+    ...aliasPolicy,
+    canonical: [...aliasPolicy.canonical, ...channelAliases],
+    vocative: [...aliasPolicy.vocative, ...channelAliases],
+    weakReference: [...aliasPolicy.weakReference, ...channelAliases]
+  };
+}
+
 export function routeMessage(ctx: IncomingMessageContext, state: ConversationState, policy: RouterPolicy = {}): RouterDecision {
   const resolved = resolvePolicy(policy);
   const normalized = normalizeMessage(ctx);
@@ -36,8 +45,9 @@ export function routeMessage(ctx: IncomingMessageContext, state: ConversationSta
   }
 
   const speaker = resolveSpeaker(ctx, resolved.makerPolicy);
-  const invocation = detectInvocation(normalized, ctx, resolved.aliasPolicy, state.botUserId);
-  const aboutness = detectAboutness(normalized, invocation);
+  const aliasPolicy = mergeChannelAliases(resolved.aliasPolicy, resolved.channelPolicy.aliases);
+  const invocation = detectInvocation(normalized, ctx, aliasPolicy, state.botUserId);
+  const aboutness = detectAboutness(normalized, invocation, aliasPolicy);
   const followup = resolveFollowup(ctx, state, speaker, resolved.makerPolicy);
   const addressee = resolveAddressee(ctx, normalized, invocation, aboutness, followup);
   const entry = scoreEntryOpportunity(invocation, aboutness, followup, addressee, speaker, resolved.channelPolicy);
@@ -45,6 +55,7 @@ export function routeMessage(ctx: IncomingMessageContext, state: ConversationSta
 
   let decision = selectAction({
     ctx,
+    normalized,
     speaker,
     invocation,
     aboutness,
