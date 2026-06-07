@@ -35,3 +35,12 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Build output
+/dist/
+/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
