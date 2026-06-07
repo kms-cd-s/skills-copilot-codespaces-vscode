@@ -1,6 +1,27 @@
-import type { Aboutness, InvocationResult, NormalizedMessage } from "../types.js";
+import type { Aboutness, InvocationResult, NormalizedMessage, AliasPolicy } from "../types.js";
 
-export function detectAboutness(normalized: NormalizedMessage, invocation: InvocationResult): Aboutness {
+const KOREAN_PARTICLES = "은는이가을를도만에게한테랑과와로으로야아께서부터까지처럼보다의";
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function aliasReferencePattern(aliases: string[]): RegExp {
+  const escaped = aliases
+    .filter(Boolean)
+    .map((alias) => escapeRegExp(alias.toLocaleLowerCase()))
+    .sort((a, b) => b.length - a.length);
+
+  if (escaped.length === 0) return /$a/u;
+
+  return new RegExp(`(?:^|\\s)(?:${escaped.join("|")})(?:\\s|$|[${KOREAN_PARTICLES}])`, "iu");
+}
+
+export function detectAboutness(
+  normalized: NormalizedMessage,
+  invocation: InvocationResult,
+  aliasPolicy: AliasPolicy
+): Aboutness {
   const text = normalized.lower;
   const compact = normalized.compact;
   const reasons: string[] = [];
@@ -9,7 +30,13 @@ export function detectAboutness(normalized: NormalizedMessage, invocation: Invoc
     return { isAboutKeyol: false, mode: "none", sentiment: "neutral", invitesEntry: false, confidence: 0, reasons };
   }
 
-  const mentionsKeyol = invocation.strength !== "none" || /(?:^|\s)(결|결이|keyol)(?:\s|$|[은는이가을를도한테에게])/iu.test(text);
+  const aboutAliases = [
+    ...aliasPolicy.canonical,
+    ...aliasPolicy.vocative,
+    ...aliasPolicy.weakReference
+  ];
+  const mentionsKeyol = invocation.strength !== "none" || aliasReferencePattern(aboutAliases).test(text);
+
   if (!mentionsKeyol) {
     return { isAboutKeyol: false, mode: "none", sentiment: "neutral", invitesEntry: false, confidence: 0, reasons };
   }
@@ -35,7 +62,7 @@ export function detectAboutness(normalized: NormalizedMessage, invocation: Invoc
     confidence += 0.18;
     invitesEntry = true;
     reasons.push("troubleshooting");
-  } else if (/(누구|정체|존재|로봇|사람|생명|결이란|keyol이란)/iu.test(compact)) {
+  } else if (/(누구|정체|존재|로봇|사람|생명|결이란|keyol이란|키올이란|귤이란)/iu.test(compact)) {
     mode = "identity_discussion";
     confidence += 0.2;
     invitesEntry = normalized.isQuestion;
