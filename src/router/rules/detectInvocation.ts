@@ -57,17 +57,6 @@ export function detectInvocation(
     return { strength: "strong", kind: "bot_mention", confidence: 0.96, reasons: ["bot_mention"] };
   }
 
-  const falsePositive = isFalsePositive(normalized, policy);
-  if (falsePositive) {
-    return {
-      strength: "none",
-      kind: "false_positive",
-      matched: falsePositive,
-      confidence: 0.05,
-      reasons: [`false_positive:${falsePositive}`]
-    };
-  }
-
   const startAlias = startsWithAlias(normalized.lower, [...policy.vocative, ...policy.canonical]);
   if (startAlias) {
     return {
@@ -98,6 +87,17 @@ export function detectInvocation(
       matched: weak,
       confidence: 0.58,
       reasons: [`particle_reference:${weak}`]
+    };
+  }
+
+  const falsePositive = isFalsePositive(normalized, policy);
+  if (falsePositive) {
+    return {
+      strength: "none",
+      kind: "false_positive",
+      matched: falsePositive,
+      confidence: 0.05,
+      reasons: [`false_positive:${falsePositive}`]
     };
   }
 
